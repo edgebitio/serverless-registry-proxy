@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Lambda with HTTP API gateway for registry proxy
+
+Parameters:
+  PublicHostName:
+    Type: String
+    Description: Customer facing hostname of the registry
+    AllowedPattern: ".+"
+  HostedZoneID:
+    Type: AWS::Route53::HostedZone::Id
+    Description: Route53 hosted zone that is the parent of the desired hostname
+    AllowedPattern: ".+"
+  ECRLocation:
+    Type: String
+    Description: ECR location of the proxy image
+    AllowedPattern: ".+"
+
+Resources:
+  DemoApiGateway:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: Demo API Gateway
+      ProtocolType: HTTP
+
+  DemoApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref DemoApiGateway
+      StageName: live
+      Description: Live Stage
+      AutoDeploy: true
+
+  DemoCert:
+    Type: 'AWS::CertificateManager::Certificate'
+    Properties:
+      DomainName: !Ref PublicHostName
+      ValidationMethod: DNS
+
+  DemoApiDomainName:
+    Type: AWS::ApiGatewayV2::DomainName
+    Properties:
+      DomainName: !Ref PublicHostName
+      DomainNameConfigurations:
+        - EndpointType: REGIONAL
+          CertificateArn: !Ref DemoCert
+
+  DemoApiBasePathMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    Properties:
+      DomainName: !Ref PublicHostName
+      ApiId: !Ref DemoApiGateway
+      Stage: !Ref DemoApiStage
+
+  DemoRecordSetGroup:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId: q
+      RecordSets:
+        - Name: !Ref PublicHostName
+          Type: A
+          AliasTarget:
+            DNSName: !GetAtt DemoApiDomainName.RegionalDomainName
+            HostedZoneId: !GetAtt DemoApiDomainName.RegionalHostedZoneId
+
+  # DemoFunction:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     Handler: index.handler
+  #     Runtime: "nodejs12.x"
+  #     InlineCode: |
+  #       exports.handler = function(event, context, callback) {
+  #           console.log(event);
+  #           const response = {
+  #               statusCode: 200,
+  #               body: JSON.stringify('Hello Node rule 1')
+  #           };
+  #           callback(null, response);
+  #       };
+
+  DemoFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      PackageType: Image
+      Role: !GetAtt DemoLambdaRole.Arn
+      Code:
+        ImageUri: !Ref ECRLocation
+      Architectures:
+        - arm64
+      MemorySize: 512
+      Timeout: 300
+
+  DemoLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  DemoLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DemoFunction
+      Action: "lambda:InvokeFunction"
+      Principal: apigateway.amazonaws.com
+
+  DemoIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref DemoApiGateway
+      Description: Lambda proxy integration
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: "2.0"
+      IntegrationUri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DemoFunction.Arn}/invocations'
+
+  DemoApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref DemoApiGateway
+      RouteKey: "GET /demo"
+      AuthorizationType: AWS_IAM
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref DemoIntegration
