@@ -52,8 +52,8 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64
           push: true
-          tags:
-            - us-docker.pkg.dev/edgebit-containers/containers/serverless-registry-proxy:${{ env.SHORT_SHA }}
-            - us-docker.pkg.dev/edgebit-containers/containers/serverless-registry-proxy:latest
-            - public.ecr.aws/p0s1m1r8/serverless-registry-proxy:${{ env.SHORT_SHA }}
-            - public.ecr.aws/p0s1m1r8/serverless-registry-proxy:latest
+          tags: |
+            us-docker.pkg.dev/edgebit-containers/containers/serverless-registry-proxy:${{ env.SHORT_SHA }}
+            us-docker.pkg.dev/edgebit-containers/containers/serverless-registry-proxy:latest
+            public.ecr.aws/p0s1m1r8/serverless-registry-proxy:${{ env.SHORT_SHA }}
+            public.ecr.aws/p0s1m1r8/serverless-registry-proxy:latest
