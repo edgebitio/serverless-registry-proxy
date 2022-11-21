@@ -55,5 +55,5 @@ jobs:
           tags: |
             us-docker.pkg.dev/edgebit-containers/containers/serverless-registry-proxy:${{ env.SHORT_SHA }}
             us-docker.pkg.dev/edgebit-containers/containers/serverless-registry-proxy:latest
-            public.ecr.aws/p0s1m1r8/serverless-registry-proxy:${{ env.SHORT_SHA }}
-            public.ecr.aws/p0s1m1r8/serverless-registry-proxy:latest
+            970625735569.dkr.ecr.us-east-1.amazonaws.com/serverless-registry-proxy:${{ env.SHORT_SHA }}
+            970625735569.dkr.ecr.us-east-1.amazonaws.com/serverless-registry-proxy:latest
