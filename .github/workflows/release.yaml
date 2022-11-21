@@ -1,0 +1,59 @@
+name: Build Release Containers
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish-images:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Authenticate to Google Cloud
+        uses: 'google-github-actions/auth@v0'
+        with:
+          workload_identity_provider: 'projects/77991489452/locations/global/workloadIdentityPools/gh-actions-identity-pool/providers/gh-actions-identity-provider'
+          service_account: 'github-actions-service-account@edgebit-containers.iam.gserviceaccount.com'
+
+      - name: Add commit short sha
+        run: echo "SHORT_SHA=`echo ${GITHUB_SHA} | cut -c1-7`" >> $GITHUB_ENV
+
+      - name: Configure Docker Auth
+        run: |
+          gcloud auth configure-docker us-docker.pkg.dev
+
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: us-east-1
+          role-to-assume: arn:aws:iam::970625735569:role/GitHubActionsECRPush
+
+      - name: Configure AWS Docker Auth
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          registry-type: public
+
+      - name: Build Container Image
+        uses: docker/build-push-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags:
+            - us-docker.pkg.dev/edgebit-containers/containers/serverless-registry-proxy:${{ env.SHORT_SHA }}
+            - us-docker.pkg.dev/edgebit-containers/containers/serverless-registry-proxy:latest
+            - public.ecr.aws/p0s1m1r8/serverless-registry-proxy:${{ env.SHORT_SHA }}
+            - public.ecr.aws/p0s1m1r8/serverless-registry-proxy:latest
